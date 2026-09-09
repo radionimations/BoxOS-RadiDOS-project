@@ -29,6 +29,13 @@
 #define DRV_ATAPI 2
 static uint8_t g_drv_type[4];
 
+/* Per-drive capacity in 512-byte sectors, same indexing. 0 = unknown
+ * (drive absent, ATAPI, or an IDENTIFY that reported nothing usable).
+ * Captured from the IDENTIFY response so callers can check a disk is
+ * big enough before writing to it — the installer needs this to decide
+ * whether the factory-restore backup fits on the target. */
+static uint32_t g_drv_sectors[4];
+
 static uint16_t bus_base(int bus) {
     return bus == 0 ? ATA_PRIMARY_BASE : ATA_SECONDARY_BASE;
 }
@@ -97,7 +104,25 @@ static int try_ata_identify(int bus, int drive) {
         if (!(s & SR_BSY) && (s & SR_DRQ)) break;
     }
     if (!(s & SR_DRQ)) return -1;
-    for (int i = 0; i < 256; i++) (void)inw(base);
+
+    /* Keep the response rather than discarding it. Words 60..61 are the
+     * LBA28 sector count; words 100..103 the LBA48 one, which is all a
+     * drive larger than 128 GiB fills in. Static, not on the stack —
+     * 512 bytes is a lot to ask of a kernel stack, and probing is never
+     * concurrent. */
+    static uint16_t id[256];
+    for (int i = 0; i < 256; i++) id[i] = inw(base);
+
+    uint32_t sectors = (uint32_t)id[60] | ((uint32_t)id[61] << 16);
+    if (sectors == 0) {
+        uint64_t s48 = (uint64_t)id[100]         | ((uint64_t)id[101] << 16) |
+                       ((uint64_t)id[102] << 32) | ((uint64_t)id[103] << 48);
+        sectors = (s48 > 0x0FFFFFFFULL) ? 0x0FFFFFFFU : (uint32_t)s48;
+    }
+    /* This driver issues 28-bit LBAs, so never report more than it can
+     * actually address. */
+    if (sectors > 0x0FFFFFFFU) sectors = 0x0FFFFFFFU;
+    g_drv_sectors[bus * 2 + drive] = sectors;
     return 0;
 }
 
@@ -124,6 +149,7 @@ static int try_atapi_identify(int bus, int drive) {
 
 int ata_identify(int bus, int drive) {
     int idx = bus * 2 + drive;
+    g_drv_sectors[idx] = 0;
     if (try_ata_identify(bus, drive) == 0) {
         g_drv_type[idx] = DRV_ATA;
         return 0;
@@ -134,6 +160,12 @@ int ata_identify(int bus, int drive) {
     }
     g_drv_type[idx] = DRV_NONE;
     return -1;
+}
+
+/* Capacity in 512-byte sectors, or 0 if unknown. Only meaningful after
+ * ata_identify has run against this position. */
+uint32_t ata_sectors(int bus, int drive) {
+    return g_drv_sectors[bus * 2 + drive];
 }
 
 int ata_drive_type(int bus, int drive) {

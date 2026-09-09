@@ -77,6 +77,8 @@ char keyboard_getc(void);
  * drive = 0 (master) or 1 (slave) */
 int  ata_identify(int bus, int drive);                 /* 0 ok, <0 none */
 int  ata_drive_type(int bus, int drive);               /* 0=none, 1=ATA, 2=ATAPI */
+/* Capacity in 512-byte sectors, 0 if unknown. Valid after ata_identify. */
+uint32_t ata_sectors(int bus, int drive);
 int  ata_read(int bus, int drive, uint32_t lba, uint8_t count, void* buf);
 int  ata_write(int bus, int drive, uint32_t lba, uint8_t count, const void* buf);
 
@@ -109,17 +111,25 @@ int  fs_mkdir_at  (uint16_t parent_cluster, const char* name);
 int  fs_rmdir     (uint16_t dir_cluster, const char* name);
 
 /* Copy the factory FAT12 backup over the live filesystem. Returns 0 on
- * success, -1 if no backup exists (legacy layout / not the combined
- * image), -2 on I/O error. */
+ * success, -1 for the legacy (non-combined) layout, -2 on I/O error,
+ * and -3 when this is a combined image that simply has no factory
+ * backup — i.e. it was installed onto a drive too small to hold one. */
 int  fs_factory_restore(void);
 
 /* Cross-disk install. Pick a target (different ATA bus/drive), then
  * call fs_install_chunk in a loop (0 = continue, 1 = done, <0 error).
  * fs_install_percent reads 0..100 between calls so callers can paint
  * a progress bar. */
+/* fs_install_start returns 0 on success, -1 if the target is unusable
+ * (absent, or the disk we booted from), -2 if it is too small to hold
+ * even the 33 MiB short copy. */
 int  fs_install_start(int bus, int drive);
 int  fs_install_chunk(void);
 int  fs_install_percent(void);
+/* 1 if the running install copies the factory-restore backup too. That
+ * needs a target of 65 MiB or more; below that the install still works
+ * but the resulting system has no FACTORY reset. */
+int  fs_install_includes_factory(void);
 int  fs_install_err_phase(void);    /* 0 ok, 1 = read media, 2 = write target */
 int  fs_install_finalize(int target_bus, int target_drive,
                          const char* name, const char* company);

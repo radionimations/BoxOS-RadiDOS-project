@@ -157,4 +157,5 @@ int bos_inst_finalize(int target_idx, const char* name, const char* company) {
 }
 int bos_factory_reset(void) { return (int)s1(146, 0); }
 int bos_inst_err_phase(void) { return (int)s1(147, 0); }
+int bos_inst_has_factory(void) { return (int)s1(150, 0); }
 int bos_boot_drive_writable(void) { return (int)s1(148, 0); }

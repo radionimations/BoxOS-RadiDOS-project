@@ -137,6 +137,10 @@ int  bos_inst_percent(void);
 /* After a failed bos_inst_chunk: 1 = read error from install media,
  * 2 = write error to the target drive (e.g. disk too small). */
 int  bos_inst_err_phase(void);
+/* 1 if the running install also copies the 32 MiB factory-restore
+ * backup, which needs a target of 65 MiB or more. When it's 0 the
+ * install still succeeds, but FACTORY won't work on the result. */
+int  bos_inst_has_factory(void);
 /* 1 if the disk we booted from is a writable ATA drive (so an
  * in-place install is possible); 0 if it's a read-only CD/El Torito. */
 int  bos_boot_drive_writable(void);

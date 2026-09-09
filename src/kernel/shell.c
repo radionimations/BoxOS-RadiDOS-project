@@ -1148,6 +1148,17 @@ static void cmd_factory(const char* args) {
         vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
         return;
     }
+    if (rc == -3) {
+        vga_set_color(VGA_LIGHT_RED, VGA_BLACK);
+        vga_puts("  this install has no factory backup.\n");
+        vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
+        vga_puts("  Setup copies the 32 MiB backup only when the target\n");
+        vga_puts("  disk is at least 65 MiB; yours was smaller, so only\n");
+        vga_puts("  the system and your files were installed.\n\n");
+        vga_puts("  To get FACTORY back, re-run Setup from the install\n");
+        vga_puts("  media onto a disk of 65 MiB or more.\n");
+        return;
+    }
     if (rc == -2) {
         vga_set_color(VGA_LIGHT_RED, VGA_BLACK);
         vga_puts("  I/O error during restore — disk may be in a bad state.\n");
@@ -1220,7 +1231,25 @@ static void setup_print_drives(void) {
                 ? ((idx == cur) ? " (current boot, FAT12 mounted)" : " present")
                 : " absent";
             vga_set_color(present ? VGA_LIGHT_GREEN : VGA_DARK_GREY, VGA_BLACK);
-            vga_printf("    [%d]  IDE %d:%d %s\n", idx, bus, d, mark);
+            if (!present) {
+                vga_printf("    [%d]  IDE %d:%d %s\n", idx, bus, d, mark);
+                continue;
+            }
+            /* Size matters when picking an install target: under 33 MiB
+             * BoxOS won't fit at all, and under 65 MiB it fits but
+             * without the factory-restore backup. */
+            uint32_t sec = ata_sectors(bus, d);
+            if (sec == 0) {
+                vga_printf("    [%d]  IDE %d:%d  size n/a%s\n",
+                           idx, bus, d, mark);
+            } else {
+                unsigned mib = (unsigned)(sec / 2048u);
+                const char* fit = (sec >= 133120u) ? ""
+                                : (sec >=  67584u) ? "  [no factory backup]"
+                                :                    "  [too small]";
+                vga_printf("    [%d]  IDE %d:%d  %u MiB%s%s\n",
+                           idx, bus, d, mib, mark, fit);
+            }
         }
     }
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);

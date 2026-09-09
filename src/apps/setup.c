@@ -427,6 +427,10 @@ static void page_install(void) {
     if (install_error) {
         if (in_place) {
             status = "Install failed -- C: is read-only.";
+        } else if (last_start_rc == -2) {
+            /* Refused before writing anything: the target can't even
+             * hold the 33 MiB system, let alone the factory backup. */
+            status = "Install failed -- that drive is too small (needs 33 MiB).";
         } else {
             int ph = bos_inst_err_phase();
             status = (ph == 1)
@@ -501,6 +505,18 @@ static void page_install(void) {
         tinfo[n++] = (char)('0' + (target_idx & 1));
         tinfo[n] = 0;
         gui_text(win, x, content_top() + 140, tinfo, 8, 7);
+    }
+
+    /* Say up front whether this install will be able to factory-reset
+     * itself later. The backup needs 32 MiB on top of the system, so a
+     * small target silently gets an install with no FACTORY -- which
+     * is exactly the surprise this line exists to prevent. */
+    if (!in_place && !install_error) {
+        gui_text(win, x, content_top() + 156,
+                 bos_inst_has_factory()
+                     ? "Factory reset backup: included."
+                     : "Factory reset backup: skipped (drive under 65 MiB).",
+                 8, 7);
     }
 }
 

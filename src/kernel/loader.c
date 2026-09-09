@@ -139,6 +139,7 @@ struct inst_final_args { uint32_t target_idx; const char* name; const char* comp
 #define SYS_FACTORY_RESET 146      /* wipe live FAT12 -> factory copy; 0 ok */
 #define SYS_INST_ERRPHASE 147      /* -> 0 ok, 1 = read media, 2 = write target */
 #define SYS_INST_BOOT_WR  148      /* -> 1 if the boot drive is a writable ATA disk */
+#define SYS_INST_HAS_FACT 150      /* -> 1 if this install carries the factory backup */
 
 /* Theme + sound enable. */
 #define SYS_THEME_INDEX    110     /* -> int                           */
@@ -322,6 +323,7 @@ int64_t syscall_dispatch(struct interrupt_frame* f) {
         }
         case SYS_FACTORY_RESET:  return (int64_t)fs_factory_restore();
         case SYS_INST_ERRPHASE:  return (int64_t)fs_install_err_phase();
+        case SYS_INST_HAS_FACT:  return (int64_t)fs_install_includes_factory();
         case SYS_INST_BOOT_WR: {
             int b = fs_boot_bus(), d = fs_boot_drive();
             if (b < 0 || d < 0) return 0;

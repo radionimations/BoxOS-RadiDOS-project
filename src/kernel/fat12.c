@@ -652,10 +652,17 @@ int fs_mkdir_at(uint16_t parent_cluster, const char* name) {
  * that responds to IDENTIFY). fs_install_chunk copies one 16 KiB
  * slab at a time so the wizard can repaint between calls.
  *
- * We copy boot sector + kernel + live FAT12 only (~33 MiB). The
- * 32 MiB factory-restore backup that the boot disk carries after
- * that isn't needed on an installed disk, and skipping it halves the
- * copy and lets the install fit on smaller target drives.
+ * How much we copy depends on the target. The boot media is laid out
+ * as boot+kernel (0..2047), the live FAT12 (2048..67583), and a
+ * read-only factory copy of that same filesystem (67584..133119).
+ *
+ * Copying only the first two — which is all this used to do — leaves
+ * the installed disk with no factory backup, so FACTORY and Setup's
+ * "format first" both fail on it forever after. So: if the target is
+ * big enough to hold the factory copy too, take the whole 65 MiB and
+ * the installed system keeps a working factory reset. If it isn't,
+ * fall back to the short 33 MiB copy and record that this install has
+ * no backup, so the shell can say so plainly instead of guessing.
  *
  * Two-step API instead of one big sync call because the chunked
  * version lets the wizard update its progress bar smoothly. */
@@ -665,19 +672,49 @@ static uint32_t g_inst_total = 0;
 static uint32_t g_inst_done  = 0;
 /* 0 = ok, 1 = read error from install media, 2 = write error to target. */
 static int      g_inst_err_phase = 0;
+/* 1 if the copy in progress includes the factory backup region. */
+static int      g_inst_with_factory = 0;
 
-#define INST_TOTAL_SECTORS 67584u    /* boot + kernel + live FAT12 (~33 MiB) */
-#define INST_CHUNK_SECTORS 32u
+#define FS_FACTORY_LBA      67584u   /* where the factory copy starts     */
+#define INST_SHORT_SECTORS  67584u   /* boot + kernel + live FAT12 (33MiB)*/
+#define INST_FULL_SECTORS  133120u   /* ...plus the factory copy   (65MiB)*/
+#define INST_CHUNK_SECTORS     32u
 
 int fs_install_err_phase(void) { return g_inst_err_phase; }
+
+/* 1 if the install now running (or just finished) carried the factory
+ * backup across, 0 if it was the short copy. */
+int fs_install_includes_factory(void) { return g_inst_with_factory; }
+
+/* Does the media we booted from actually carry a factory backup? An
+ * ISO or a freshly-flashed USB does; a disk that was itself installed
+ * with the short copy does not, and blindly copying that region would
+ * write 32 MiB of garbage and produce a "backup" that fails its own
+ * BPB check later. */
+static int source_has_factory(void) {
+    static uint8_t probe[512];
+    uint32_t lba = g_iso_image_offset_512 + FS_FACTORY_LBA;
+    if (ata_read(fs.bus, fs.drive, lba, 1, probe) < 0) return 0;
+    struct bpb* b = (struct bpb*)probe;
+    return (b->bytes_per_sector == 512 && b->fat_count != 0);
+}
 
 int fs_install_start(int bus, int drive) {
     if (!fs.mounted) return -1;
     if (bus == fs.bus && drive == fs.drive) return -1;     /* refuse self */
     if (ata_identify(bus, drive) < 0) return -1;
+
+    /* Check the target is big enough before writing a single sector,
+     * rather than discovering it 33 MiB in via a write error. A drive
+     * that reports 0 sectors told us nothing usable — fall back to the
+     * conservative short copy rather than refusing the install. */
+    uint32_t cap = ata_sectors(bus, drive);
+    if (cap != 0 && cap < INST_SHORT_SECTORS) return -2;   /* too small */
+
+    g_inst_with_factory = (cap >= INST_FULL_SECTORS) && source_has_factory();
+    g_inst_total = g_inst_with_factory ? INST_FULL_SECTORS : INST_SHORT_SECTORS;
     g_inst_bus   = bus;
     g_inst_drive = drive;
-    g_inst_total = INST_TOTAL_SECTORS;
     g_inst_done  = 0;
     g_inst_err_phase = 0;
     return 0;
@@ -766,23 +803,27 @@ int fs_boot_drive(void) { return fs.mounted ? fs.drive : -1; }
 /* Restore the live FAT12 from the read-only factory copy embedded in
  * the bootable image. Returns:
  *    0   restored
- *   -1   no factory copy on this disk (legacy two-disk setup)
+ *   -1   legacy two-disk layout — there is no combined image here
  *   -2   I/O error mid-copy
+ *   -3   combined layout, but this disk carries no factory backup.
+ *        That means it was installed with the short copy onto a drive
+ *        too small for the extra 32 MiB (see fs_install_start), so the
+ *        caller should say that rather than blaming the disk layout.
  * Caller should reboot afterwards so fs_mount picks up the fresh state. */
 int fs_factory_restore(void) {
     if (!fs.mounted)             return -1;
     if (fs.partition_lba == 0)   return -1;        /* legacy layout */
 
     static uint8_t buf[512];
-    const uint32_t live    = 2048;
-    const uint32_t factory = live + 65536;
-    const uint32_t n       = 65536;
+    const uint32_t live    = FS_OFFSET_COMBINED;
+    const uint32_t factory = FS_FACTORY_LBA;
+    const uint32_t n       = FS_FACTORY_LBA - FS_OFFSET_COMBINED;
     int bus = fs.bus, drive = fs.drive;
 
     /* Sanity: factory backup region must look like a FAT12 BPB. */
     if (ata_read(bus, drive, factory, 1, buf) < 0) return -2;
     struct bpb* b = (struct bpb*)buf;
-    if (b->bytes_per_sector != 512 || b->fat_count == 0) return -1;
+    if (b->bytes_per_sector != 512 || b->fat_count == 0) return -3;
 
     for (uint32_t i = 0; i < n; i++) {
         if (ata_read(bus, drive, factory + i, 1, buf) < 0) return -2;
