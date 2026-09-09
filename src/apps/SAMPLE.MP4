@@ -1,0 +1,7 @@
+; Placeholder MP4 file — BoxOS 1.0 doesn't have an MP4 decoder.
+; Video decode is unlikely to ever land in BoxOS proper: H.264 alone
+; is tens of thousands of lines, and the MP4 container parsing
+; (atoms, sample tables, time-to-sample maps, codec init) is several
+; thousand more. The OS will keep the .MP4 type label so you can
+; *see* video files in your Documents, but playback isn't on the
+; roadmap.

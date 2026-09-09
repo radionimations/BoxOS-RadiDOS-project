@@ -1,0 +1,27 @@
+# Build output
+build/
+*.o
+*.elf
+*.bin
+*.lst
+*.map
+
+# Generated images (publish via GitHub Releases instead of committing)
+*.img
+*.iso
+*.qcow2
+*.vdi
+*.vmdk
+
+# Editor / OS junk
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+
+# Dependency caches
+.cache/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json

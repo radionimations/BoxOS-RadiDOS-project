@@ -1,0 +1,19 @@
+# Keep LF everywhere — in the repo AND in the working tree.
+# BoxOS is built with make/nasm/gcc under Linux (or WSL on Windows),
+# and those choke on CRLF in Makefile recipes and shell fragments.
+# Without this, a clone on Windows silently converts to CRLF and the
+# build breaks in ways that look like toolchain bugs.
+* text=auto eol=lf
+
+# Assets and images: byte-exact, never line-ending-converted.
+*.WAD  binary
+*.wad  binary
+*.MP3  binary
+*.MP4  binary
+*.JPG  binary
+*.JPEG binary
+*.BMP  binary
+*.ANI  binary
+*.img  binary
+*.iso  binary
+*.bin  binary

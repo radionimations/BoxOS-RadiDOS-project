@@ -1,0 +1,45 @@
+BoxOS 2.0  /SYS/SYSTEM32/  -- system core
+==========================================
+
+This directory holds the OS itself.  Don't delete or edit anything
+here unless you know what you're doing -- the boot loader walks
+these files at startup, and the factory-restore image lives next
+to them on disk.
+
+Contents
+--------
+
+  BOOT.BIN     512 bytes   Stage-1 boot sector.  Loaded at 0x7C00
+                           by the BIOS, finds and pulls in stage 2
+                           via two INT 13h LBA reads.
+
+  STAGE2.BIN   4 KiB       Real-mode setup.  Enables A20, builds the
+                           PML4/PDPT/PD identity-mapping the kernel
+                           runs on, and far-jumps into long mode.
+
+  KERNEL.BIN   ~80 KiB     The 64-bit kernel.  Owns the framebuffer,
+                           PS/2 keyboard + mouse, FAT12 driver, app
+                           loader, window manager, and Executive.
+
+  BOXOS.IMG    ~1.4 MiB    Boot sector + stage 2 + kernel rolled
+                           into one flat disk image.  This is the
+                           system-core backup -- if a build leaves
+                           the live boot region damaged, the
+                           FACTORY shell command rewrites the live
+                           drive from this image plus the FS.
+
+  CONFIG.SYS              (placeholder) DOS-era config holdover --
+                           BoxOS doesn't read it yet.  Present so
+                           SYSTEM32 looks the part.
+
+  BOXOS.TXT               Short description of the OS architecture.
+                           Pinned here so it travels with the
+                           system core.
+
+Where the *full* backup lives
+-----------------------------
+
+The on-disk factory image (boot + stage 2 + kernel + the entire
+FAT12 filesystem) sits past the live FS at LBAs 67584 and up of the
+boot disk -- not as a file inside the FAT12 (it would have to
+contain itself).  See: shell command FACTORY.

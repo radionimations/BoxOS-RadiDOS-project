@@ -1,0 +1,5 @@
+; Placeholder MP3 file — BoxOS 1.0 doesn't have an MP3 decoder yet.
+; The OS recognises the .MP3 extension and shows a dialog explaining
+; that audio decoding is a future milestone (needs PCI sound card +
+; MP3 decoder, ~10 KLOC). Rename this and your own files will replace
+; it.

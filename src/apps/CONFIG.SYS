@@ -1,0 +1,8 @@
+; BoxOS 1.0 system configuration.
+; Reserved.  The kernel does not parse this file yet; placeholder so
+; /SYS/SYSTEM32 has the look-and-feel of a DOS-era system folder.
+
+DEVICE=KERNEL.BIN
+FILES=64
+BUFFERS=16
+SHELL=RADIDOS

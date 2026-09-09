@@ -1,0 +1,79 @@
+RadiDOS internals
+-----------------
+
+Bootloader  : 16-bit real-mode stage 1 (boot.asm) + 32->64 stage 2.
+Kernel base : 0x8E00 (loaded as a flat binary by stage 2).
+Stack       : 0x90000 grows down.
+Heap        : 96 MiB bump allocator at 0x1000000.
+Page tables : PML4 0x1000, PDPT 0x2000, PD 0x3000, identity-mapped 0..1 GiB.
+VGA text    : 0xB8000, 80x25 colour cells.
+VGA mode 13h: 0xA0000, 320x200x256 (used by graphics apps + DOOM).
+
+Subsystems
+----------
+
+PIT timer @ 100 Hz drives ticks_ms() and timer_sleep_ms.
+PS/2 keyboard on IRQ1 -- char ring + (pressed<<8)|ascii event ring.
+PS/2 mouse on IRQ12 -- 3-byte packet reassembly, drained via mouse_poll.
+ATA PIO master/slave on primary + secondary -- read and write 512-byte LBAs.
+FAT12 read-only with subdirectory support -- root + chained-cluster dirs.
+ELF... no. Apps are flat 64-bit binaries linked at 0x200000.
+
+Booting on real hardware
+------------------------
+
+`boxos.iso` and `boxos-bootable.img` are byte-identical and contain
+EVERYTHING in a single file:
+
+  LBA 0..2047       boot sector + stage 2 + kernel
+  LBA 2048..67583   the live FAT12 filesystem (this is what mounts)
+  LBA 67584..end    a read-only factory backup of the same FAT12
+
+Despite the .iso name, the file is NOT ISO 9660 — our kernel can't
+read CD/DVD format. Treat it as a hard-disk image: attach as HDD in
+UTM, write directly to USB with Rufus (DD mode) or dd.
+
+  Rufus:    DD image mode, point at boxos.iso
+  dd:       sudo dd if=boxos.iso of=/dev/sdX bs=1M conv=fsync
+  UTM:      attach as a Hard Drive (not a CD-ROM). One drive total.
+  QEMU:     -drive format=raw,file=boxos.iso,if=ide,index=0
+
+The target machine needs legacy BIOS / CSM enabled. UEFI-only firmware
+can't boot the image.
+
+`boxos.img` (the small ~1 MiB version) is the kernel-only image used
+by the legacy two-disk setup; it's still produced for backward compat
+but most users want the single all-in-one above.
+
+The target BIOS must allow legacy boot. UEFI-only firmware (most
+modern laptops in their default config) won't load this image —
+flip on Legacy Boot / CSM in firmware setup, or use a machine that
+still has it.
+
+USB peripherals after boot are NOT supported yet — RadiDOS only
+talks PS/2 keyboard and PS/2 mouse. On modern hardware those are
+emulated by the firmware as long as legacy USB is on; if your
+keyboard goes dead after the boot screen, that's the BIOS dropping
+the PS/2 emulation. Toggling "USB Legacy Support" usually fixes it.
+
+A real USB stack (xHCI host controller + HID + mass storage) is on
+the wishlist; it's thousands of lines and not done here.
+
+Syscalls
+--------
+
+int 0x80, syscall number in rax. Args in rdi/rsi/rdx, return in rax.
+
+  0   exit                   (rdi: code -> back to shell via crt0)
+  1   putc(char)             6   print_int(int64)
+  2   puts(cstring)          7   try_getc -> 0 or char
+  3   getc -> char           8   try_get_key -> (pressed<<8)|ascii
+  4   cls                    9   mouse_poll(buf12) -> 1 if data
+  5   set_color(fg, bg)
+ 10   gfx_mode(0=text 1=13h) 12   gfx_palette(768 bytes)
+ 11   gfx_blit(64000 bytes)
+ 20   sleep_ms(ms)           21   ticks_ms -> ms since boot
+ 30   malloc(bytes)          31   free(ptr)
+ 40   read_file(name, buf, cap) -- relative to app's cwd
+ 50   status_line(cstring) -- overwrite reserved row
+ 99   reboot via 8042

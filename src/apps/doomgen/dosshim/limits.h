@@ -1,0 +1,13 @@
+#ifndef _LIMITS_H_SHIM
+#define _LIMITS_H_SHIM
+#define INT_MAX  2147483647
+#define INT_MIN  (-INT_MAX - 1)
+#define UINT_MAX 4294967295U
+#define LONG_MAX 9223372036854775807L
+#define LONG_MIN (-LONG_MAX - 1)
+#define SHRT_MAX 32767
+#define SHRT_MIN (-32768)
+#define CHAR_BIT 8
+#define PATH_MAX 1024
+#define MB_LEN_MAX 4
+#endif

@@ -1,0 +1,13 @@
+Welcome to BoxOS 2.0!
+
+This is the Documents folder, where your personal files live.
+Apps that save user data (Paint -> .BMP, Notepad in 1.x, etc.)
+default to writing here.
+
+Try this:
+- Right-click a file: Edit / Rename / Delete / Info / Copy / Paste
+- Double-click an image: opens in the Image Viewer
+- Run Paint, draw, hit S to save: PAINT.BMP lands next to this file
+- File > Open Terminal: full RadiDOS shell with DIR / CD / CAT / RUN
+
+Have fun.

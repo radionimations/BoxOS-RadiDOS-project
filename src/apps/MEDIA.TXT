@@ -1,0 +1,30 @@
+Media format support in BoxOS 2.0
+==================================
+
+This folder is the home for all "user document" file types. The OS
+plans to grow into the formats below; today's support level:
+
+  .TXT    fully supported -- double-click opens in the file viewer,
+          right-click Edit opens the in-kernel editor, you can
+          rename / copy / paste / delete from the right-click menu.
+
+  .BMP    fully supported -- 8-bit indexed BMP, double-click opens
+          in the Image Viewer (WINIMG), Paint writes BMP via the
+          Save button or 's' key.
+
+  .JPG    decoder is wired in (WINIMG inspects the magic and dispatches
+          to the JPEG path), but the baseline decoder is still being
+          debugged -- it will reject some legal files for now.
+
+  .MP3    no decoder yet. The PC speaker is single-voice square-wave
+          only, which is a poor fit for compressed audio. Real audio
+          is a future milestone (PCI Sound Blaster + a FixedQ MP3 or
+          IMA-ADPCM decoder).
+
+  .MP4    no decoder, and unlikely. Even a minimal H.264 decoder is
+          tens of thousands of lines; container parsing alone is
+          thousands more. BoxOS 2.x will probably never play video.
+
+The Executive recognises the file extension and will route opens
+through the appropriate viewer, with a friendly dialog when the
+format isn't supported yet.
